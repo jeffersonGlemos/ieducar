@@ -19,18 +19,23 @@ use Illuminate\Support\Facades\Route;
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
+Route::namespace('Api')
+     ->prefix('jwt')
+     ->group(static function ($router) {
+         Route::post('login', 'JWTController@login');
+         Route::post('refresh', 'JWTController@refresh');
+     });
 
 Route::group(
     [
         'middleware' => 'auth:sanctum',
     ],
-    static fn () =>
-    Route::apiResources([
-        'country' => CountryController::class,
-        'state' => StateController::class,
-        'district' => DistrictController::class,
-        'city' => CityController::class,
-        'religion' => ReligionController::class,
+    static fn() => Route::apiResources([
+        'country'           => CountryController::class,
+        'state'             => StateController::class,
+        'district'          => DistrictController::class,
+        'city'              => CityController::class,
+        'religion'          => ReligionController::class,
         'person/deficiency' => LegacyDeficiencyController::class
     ])
 );
@@ -51,10 +56,12 @@ Route::get('/school-class/stages/{schoolClass}', 'Api\SchoolClassController@getS
 
 Route::delete('/employee-withdrawal/{id}', [EmployeeWithdrawalController::class, 'remove']);
 
-Route::group(['prefix' => 'resource', 'as' => 'api.resource.','namespace' => 'Api\Resource'], static function () {
+Route::group(['prefix' => 'resource', 'as' => 'api.resource.', 'namespace' => 'Api\Resource'], static function () {
     Route::get('course', 'Course\ResourceCourseController@index')->name('course');
     Route::get('grade', 'Grade\ResourceGradeController@index')->name('grade');
-    Route::get('school-academic-year', 'SchoolAcademicYear\ResourceSchoolAcademicYearController@index')->name('school-academic-year');
+    Route::get('school-academic-year', 'SchoolAcademicYear\ResourceSchoolAcademicYearController@index')->name(
+        'school-academic-year'
+    );
     Route::get('school', 'School\ResourceSchoolController@index')->name('school');
     Route::get('school-class', 'SchoolClass\ResourceSchoolClassController@index')->name('school-class');
     Route::get('evaluation-rule', 'EvaluationRule\ResourceEvaluationRuleController@index')->name('evaluation-rule');
