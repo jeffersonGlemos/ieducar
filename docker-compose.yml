@@ -8,7 +8,7 @@ services:
     links:
       - php
     ports:
-      - 80
+      - 80:80
     working_dir: /var/www/ieducar
     volumes:
       - ./:/var/www/ieducar
@@ -33,7 +33,7 @@ services:
       POSTGRES_USER: ieducar
       POSTGRES_PASSWORD: ieducar
     ports:
-      - 5432
+      - 5433:5432
     volumes:
       - ./database/data:/var/lib/postgresql/data
 
@@ -43,3 +43,25 @@ services:
     restart: always
     ports:
       - 6379
+  graphql-engine:
+    image: hasura/graphql-engine:v2.18.0
+    ports:
+      - "8080:8080"
+    depends_on:
+      - "postgres"
+    restart: always
+    environment:
+      ## postgres database to store Hasura metadata
+      HASURA_GRAPHQL_METADATA_DATABASE_URL: postgres://ieducar:ieducar@postgres:5432/postgres
+      ## this env var can be used to add the above postgres database to Hasura as a data source. this can be removed/updated based on your needs
+      PG_DATABASE_URL: postgres://ieducar:ieducar@postgres:5432/ieducar
+      ## enable the console served by server
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true" # set to "false" to disable console
+      ## enable debugging mode. It is recommended to disable this in production
+      HASURA_GRAPHQL_DEV_MODE: "true"
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log, websocket-log, query-log
+      ## uncomment next line to run console offline (i.e load console assets from server instead of CDN)
+      # HASURA_GRAPHQL_CONSOLE_ASSETS_DIR: /srv/console-assets
+      ## uncomment next line to set an admin secret
+      HASURA_GRAPHQL_ADMIN_SECRET: myadminsecretkey
+      HASURA_GRAPHQL_JWT_SECRET: '{"type": "RS512","key": "-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA3N2KcqtWn/TnE3sBI769\nB0R4evb+QPuyMXf9KxNEO39Dy/i/tRIt5Vn2z/4kK09R9/e1kJ/qLOUtetxSVFUG\nD6oQI6qijkaPVI71hznbfxIyKK5uAe6XI/Uw0hkvwVF0UtNLambq2o2eO8AVfp+4\noGo7nzuN9b6DZkm2j3n7qm9k+dKf9kVGDl0FP5i2w4+vzZx90AacoNmHC+HKdspz\n6Xs3SOVJMLXoJrrPjFhvnwemTVT2Phg1KyNO+Of5+761THNk3O3r/prXu6tXx/+G\nK6x9wINAwKegadMLsht6RHS7BIicjGu6nLjw5HHID89v8fiOX7czHE/h5pcP9D+/\nBd/npf/8TBShGDzzEadWYBBNHJOG82nNDknu2RuuP+fM5O+b/VDW2mOdlWrPD2Zp\nGAlQ+Kf2HnrF7Eu6G4Sc7ckR1O2XSKr3O5eSa1WpD6qaD3nP1AMmmWR17WuP24KM\n6heO8LZ+1oaEF8WihU4Pkpq92V81LYThwhC6sSufXx7e8AJvCfbkz1YC+pF/ZGFW\nvazFt3jjIHOhLQWYxZoaYg8q8mxpWD/Aap+vHihD61LaFdvxB5F01Pm3ZjfQHmdD\nEV3HTsGEnSBzhvx2dngSnAz9vsqGCnCV5fKlXM9pszlOSLvplHcFglgIgZRBtPtE\nauxCTxYScJEFS5r8Wm0MtkkCAwEAAQ==\n-----END PUBLIC KEY-----"}'

@@ -14,20 +14,24 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
+use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
 
 /**
- * @property int            $id
- * @property string         $name
- * @property string         $email
- * @property string         $role
- * @property string         $login
- * @property string         $password
- * @property string         $created_at
+ * @property int $id
+ * @property string $name
+ * @property string $email
+ * @property string $role
+ * @property string $login
+ * @property string $password
+ * @property string $created_at
  * @property LegacyUserType $type
+ * @property LegacyPerson $person
  * @property LegacyEmployee $employee
  */
-class User extends Authenticatable
+class User extends Authenticatable implements JWTSubject
 {
     use HasApiTokens;
     use Notifiable;
@@ -46,14 +50,17 @@ class User extends Authenticatable
      * @var array
      */
     protected $fillable = [
-        'name', 'email', 'password',
+        'name',
+        'email',
+        'password',
     ];
 
     /**
      * @var array
      */
     protected $hidden = [
-        'password', 'remember_token',
+        'password',
+        'remember_token',
     ];
 
     public $timestamps = false;
@@ -270,8 +277,8 @@ class User extends Authenticatable
     public function menu()
     {
         return $this->processes()
-            ->wherePivot('visualiza', 1)
-            ->withPivot(['visualiza', 'cadastra', 'exclui']);
+                    ->wherePivot('visualiza', 1)
+                    ->withPivot(['visualiza', 'cadastra', 'exclui']);
     }
 
     /**
@@ -315,8 +322,8 @@ class User extends Authenticatable
     public function getLastAccessDate(): Carbon
     {
         $legacyAccess = $this->access()
-            ->orderBy('data_hora', 'DESC')
-            ->first();
+                             ->orderBy('data_hora', 'DESC')
+                             ->first();
 
         if (!$legacyAccess) {
             return $this->getCreatedAtCustom() ?? Carbon::now();
@@ -359,10 +366,10 @@ class User extends Authenticatable
     public function getActiveUsersNotAdmin()
     {
         return $this->query()
-            ->join('portal.funcionario', 'usuario.cod_usuario', '=', 'funcionario.ref_cod_pessoa_fj')
-            ->where('funcionario.ativo', 1)
-            ->where('ref_cod_tipo_usuario', '<>', LegacyUserType::LEVEL_ADMIN)
-            ->get();
+                    ->join('portal.funcionario', 'usuario.cod_usuario', '=', 'funcionario.ref_cod_pessoa_fj')
+                    ->where('funcionario.ativo', 1)
+                    ->where('ref_cod_tipo_usuario', '<>', LegacyUserType::LEVEL_ADMIN)
+                    ->get();
     }
 
     public function disable()
@@ -372,5 +379,51 @@ class User extends Authenticatable
         $this->employee->save();
         $this->ativo = 0;
         $this->save();
+    }
+
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
+
+    /**
+     * Return a key value array, containing any custom claims to be added to the JWT.
+     *
+     * @return array
+     */
+    public function getJWTCustomClaims()
+    {
+        $usuario = [];
+        $usuario['nome'] = $this->person->name;
+        $usuario['email'] = $this->employee->email;
+        $usuario['telefones'] = $this->person->phone()->get(['ddd', 'fone'])->toArray();
+        $funcoes = DB::table('pmieducar.servidor_funcao')
+                     ->select(
+                         DB::raw(
+                             'nm_funcao as nome, funcao.professor as is_professor,funcao.ref_cod_instituicao as instituicao'
+                         )
+                     )
+                     ->join('pmieducar.funcao', 'funcao.cod_funcao', 'servidor_funcao.ref_cod_funcao')
+                     ->where([['servidor_funcao.ref_cod_servidor', $this->id]])
+                     ->get()->toArray();
+        $is_professor = DB::table('pmieducar.servidor_funcao')
+                          ->join('pmieducar.funcao', 'funcao.cod_funcao', 'servidor_funcao.ref_cod_funcao')
+                          ->where('servidor_funcao.ref_cod_servidor', $this->id)
+                          ->where('funcao.professor', 1)
+                          ->exists();
+
+        $usuario['funcoes'] = $funcoes;
+        $hasura_roles = ["admin"];
+        if ($is_professor) {
+            $hasura_roles[] = 'teacher';
+        }
+        return [
+            "usuario"                      => $usuario,
+            "https://hasura.io/jwt/claims" => [
+                "x-hasura-allowed-roles" => $hasura_roles,//todo alterar para seu negócio
+                "x-hasura-default-role"  => "admin",//todo alterar para seu negócio
+                "x-hasura-user-id"       => Str::of($this->id)->toString(),
+            ]
+        ];
     }
 }
